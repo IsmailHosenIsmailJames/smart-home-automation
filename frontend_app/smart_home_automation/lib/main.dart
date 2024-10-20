@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:smart_home_automation/firebase_options.dart';
 import 'package:smart_home_automation/src/auth/login/login_page.dart';
 import 'package:smart_home_automation/src/screens/home/home_page.dart';
+import 'package:smart_home_automation/src/theme/colors.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,11 +22,20 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.light,
       theme: ThemeData(
         textTheme: GoogleFonts.poppinsTextTheme(),
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue.shade900,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+            backgroundColor: AppColors().primaryColor,
+            foregroundColor: Colors.white,
+          ),
         ),
         useMaterial3: true,
       ),
