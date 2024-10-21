@@ -42,6 +42,8 @@ dependencies:
   flutter_launcher_icons: ^0.14.1
   gap: ^3.0.1
   email_validator: ^3.0.0
+  get: ^4.6.6
+  toastification: ^2.3.0
 
 dev_dependencies:
   flutter_test:
