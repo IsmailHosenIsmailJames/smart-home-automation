@@ -1,7 +1,6 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
-import 'package:smart_home_automation/src/screens/home/model/mode_of_elements.dart';
 import 'package:smart_home_automation/src/theme/colors.dart';
 import 'package:toastification/toastification.dart';
 
@@ -30,10 +29,10 @@ class _HomePageState extends State<HomePage> {
               List<String> elementsNames = [];
               data.forEach(
                 (key, value) {
-                  elementsNames.add(key);
-                  elements.add(
+                 if(key!= "names"){ elementsNames.add(key);}
+                if(key!= "names") {   elements.add(
                     ModeOfElements.fromMap(Map<String, dynamic>.from(value)),
-                  );
+                  );}
                 },
               );
               return SingleChildScrollView(

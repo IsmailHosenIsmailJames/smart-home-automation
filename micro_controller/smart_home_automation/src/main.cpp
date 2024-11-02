@@ -1,194 +1,249 @@
+/**
+ * Created by K. Suwatchai (Mobizt)
+ *
+ * Email: k_suwatchai@hotmail.com
+ *
+ * Github: https://github.com/mobizt/Firebase-ESP-Client
+ *
+ * Copyright (c) 2023 mobizt
+ *
+ */
+
+#include <Arduino.h>
+#if defined(ESP32) || defined(ARDUINO_RASPBERRY_PI_PICO_W)
 #include <WiFi.h>
-#include <HTTPClient.h>
-#include <Preferences.h>
-#include <ESPAsyncWebServer.h>
-#include <ArduinoJson.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
-#include <Wire.h>
-#include <Adafruit_BMP280.h>
-#include <Adafruit_AHTX0.h> // Replace with appropriate AHT20 library
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#elif __has_include(<WiFiNINA.h>)
+#include <WiFiNINA.h>
+#elif __has_include(<WiFi101.h>)
+#include <WiFi101.h>
+#elif __has_include(<WiFiS3.h>)
+#include <WiFiS3.h>
+#endif
 
-Adafruit_AHTX0 aht;
-Adafruit_BMP280 bmp;
+#include <Firebase_ESP_Client.h>
 
-Preferences preferences;
+// Provide the token generation process info.
+#include <addons/TokenHelper.h>
 
-const char *ssid_AP = "Smart Home Automation";
-const char *password_AP = "12345678";
+// Provide the RTDB payload printing info and other helper functions.
+#include <addons/RTDBHelper.h>
 
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP);
+/* 1. Define the WiFi credentials */
+#define WIFI_SSID "Ismail"
+#define WIFI_PASSWORD "android147890"
 
-AsyncWebServer server(80);
+// For the following credentials, see examples/Authentications/SignInAsUser/EmailPassword/EmailPassword.ino
 
-void setup()
+/* 2. Define the API Key */
+#define API_KEY "AIzaSyBJAHkEkobTYYrYkQSvsK9rwM2_VrrbV4E"
+
+/* 3. Define the RTDB URL */
+#define DATABASE_URL "https://smart-home-automation-724d1-default-rtdb.asia-southeast1.firebasedatabase.app" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
+
+/* 4. Define the user Email and password that already registered or added in your project */
+#define USER_EMAIL "md.ismailhosenismailjames@gmail.com"
+#define USER_PASSWORD "147890"
+
+// Define Firebase Data object
+FirebaseData stream;
+FirebaseData fbdo;
+
+FirebaseAuth auth;
+FirebaseConfig config;
+
+unsigned long sendDataPrevMillis = 0;
+
+int count = 0;
+
+volatile bool dataChanged = false;
+
+#if defined(ARDUINO_RASPBERRY_PI_PICO_W)
+WiFiMulti multi;
+#endif
+
+String statePath = "/";
+
+void streamCallback(FirebaseStream data)
 {
-  Wire.begin(1, 2); // SDA, SCL
-  pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(9600);
-  if (!bmp.begin())
+  Serial.println("Data Changed");
+  FirebaseJson &json = data.jsonObject();
+  FirebaseJsonData pin, state, names;
+  json.get(names, "/names");
+  String namesList[100];
+
+  String stringName = names.to<String>();
+  size_t lenOfNames = stringName.length();
+  size_t indexOfFirst = stringName.indexOf(":");
+  size_t insertIndex = 0;
+  while (indexOfFirst != -1)
   {
-    Serial.println("Could not find a valid BMP280 sensor, check wiring!");
-    while (1)
-      delay(10);
+    namesList[insertIndex] = stringName.substring(0, indexOfFirst);
+    insertIndex++;
+    stringName = stringName.substring(indexOfFirst + 1, lenOfNames);
+    indexOfFirst = stringName.indexOf(":");
   }
-  if (!aht.begin())
+
+  Serial.println("NAme Length");
+  Serial.println(namesList[0]);
+
+  for (int i = 0; i < 100; i++)
   {
-    Serial.println("Could not find AHT? Check wiring");
-    while (1)
-      delay(10);
-  }
-
-  WiFi.mode(WIFI_AP_STA);
-  // Initialize preferences
-  preferences.begin("my-app", false);
-
-  // open hotspot to Wi-Fi
-  WiFi.softAP(ssid_AP, password_AP);
-  Serial.print("Access Point IP Address: ");
-  Serial.println(WiFi.softAPIP());
-
-  bool isWifiSet = preferences.getBool("isWifiSet", false);
-  if (isWifiSet == true)
-  {
-    Serial.println("Connecting to WiFi...");
-    String defaultValue = String();
-    String ssid = preferences.getString("ssid", defaultValue);
-    String password = preferences.getString("password", defaultValue);
-    WiFi.begin(ssid, password);
-    for (int i = 300; i > 0; i--)
+    if (namesList[i].length() != 0)
     {
-      if (WiFi.status() != WL_CONNECTED)
+      String pinPath = "/";
+      statePath = "/";
+      pinPath += namesList[i];
+      statePath += namesList[i];
+      pinPath += "/pin";
+      statePath += "/state";
+      json.get(pin, pinPath);
+      json.get(state, statePath);
+
+      Serial.println(pin.to<int>());
+      Serial.println(state.to<bool>());
+
+      if (state.to<bool>() == true)
       {
-        delay(100);
+        digitalWrite(pin.to<int>(), HIGH);
+        Serial.println(" id ON");
       }
       else
       {
-        break;
+        digitalWrite(pin.to<int>(), LOW);
+        Serial.println(" is OFF");
       }
     }
-    if (WiFi.status() == WL_CONNECTED)
-    {
-      Serial.println(WiFi.localIP());
-    }
-
-    timeClient.begin();
   }
 
-  // Endpoint to receive JSON data via POST
-  server.on(
-      "/connect_wifi", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-      [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
-      {
-        // Allocate JsonDocument and parse JSON data
-        JsonDocument jsonDoc;
-        DeserializationError error = deserializeJson(jsonDoc, (char *)data);
-
-        if (error)
-        {
-          request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-          return;
-        }
-
-        // Extract values from JSON
-        const char *getSSID = jsonDoc["ssid"];
-        const char *getPassword = jsonDoc["password"];
-
-        WiFi.begin(getSSID, getPassword);
-        for (int i = 300; i > 0; i--)
-        {
-          if (WiFi.status() != WL_CONNECTED)
-          {
-            delay(100);
-          }
-          else
-          {
-            break;
-          }
-        }
-        if (WiFi.status() == WL_CONNECTED)
-        {
-          preferences.clear();
-          Serial.println("Connected");
-          preferences.putBool("isWifiSet", true);
-          preferences.putString("ssid", getSSID);
-          preferences.putString("password", getPassword);
-          request->send(200, "application/text", "connected");
-        }
-        else
-        {
-          request->send(500, "application/text", "unable to connect");
-        }
-      });
-
-  // Endpoint to set state by JSON
-  server.on(
-      "/set_data", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-      [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
-      {
-        // Allocate JsonDocument and parse JSON data
-        JsonDocument jsonDoc;
-        DeserializationError error = deserializeJson(jsonDoc, (char *)data);
-
-        if (error)
-        {
-          request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-          return;
-        }
-
-        int state = jsonDoc["light1"];
-        Serial.println(state);
-        if (state == -1)
-        {
-          digitalWrite(LED_BUILTIN, LOW);
-          Serial.println("Light 1 LOW ");
-        }
-        else if (state == 1)
-        {
-          digitalWrite(LED_BUILTIN, HIGH);
-          Serial.println("Light 1 HIGH ");
-        }
-        else if (state == 0)
-        {
-          Serial.println("Light 1 is 0 ");
-        }
-
-        String jsonToSend;
-        serializeJson(jsonDoc, jsonToSend);
-        Serial.println(jsonToSend);
-        request->send(200, "application/json", jsonToSend);
-      });
-
-  // Endpoint to set state by JSON
-  server.on(
-      "/get_sensor_data", HTTP_POST, [](AsyncWebServerRequest *request)
-      {
-      // Allocate JsonDocument and parse JSON data
-
-      JsonDocument jsonDocument;
-
-      sensors_event_t humidity, temp;
-      aht.getEvent(&humidity, &temp);  // populate temp and humidity objects with fresh data
-      jsonDocument.add(bmp.readTemperature());
-      jsonDocument.add(temp.temperature);
-      jsonDocument.add(humidity.relative_humidity);
-      jsonDocument.add(bmp.readAltitude(101325));
-      jsonDocument.add(bmp.readPressure());
-
-      Serial.print("Sensor Data : ");
-      String jsonToSend;
-      serializeJson(jsonDocument, jsonToSend);
-
-      request->send(200, "application/text", jsonToSend); });
-
-  server.begin();
+  dataChanged = true;
 }
 
-void setStateLight1BOS() // BOS = Based on sensor
+void streamTimeoutCallback(bool timeout)
 {
+  if (timeout)
+    Serial.println("stream timed out, resuming...\n");
+
+  if (!stream.httpConnected())
+    Serial.printf("error code: %d, reason: %s\n\n", stream.httpCode(), stream.errorReason().c_str());
+}
+
+void setup()
+{
+
+  Serial.begin(115200);
+
+#if defined(ARDUINO_RASPBERRY_PI_PICO_W)
+  multi.addAP(WIFI_SSID, WIFI_PASSWORD);
+  multi.run();
+#else
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+#endif
+
+  Serial.print("Connecting to Wi-Fi");
+  unsigned long ms = millis();
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(300);
+#if defined(ARDUINO_RASPBERRY_PI_PICO_W)
+    if (millis() - ms > 10000)
+      break;
+#endif
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  Serial.printf("Firebase Client v%s\n\n", FIREBASE_CLIENT_VERSION);
+
+  /* Assign the api key (required) */
+  config.api_key = API_KEY;
+
+  /* Assign the user sign in credentials */
+  auth.user.email = USER_EMAIL;
+  auth.user.password = USER_PASSWORD;
+
+  /* Assign the RTDB URL (required) */
+  config.database_url = DATABASE_URL;
+
+  // The WiFi credentials are required for Pico W
+  // due to it does not have reconnect feature.
+#if defined(ARDUINO_RASPBERRY_PI_PICO_W)
+  config.wifi.clearAP();
+  config.wifi.addAP(WIFI_SSID, WIFI_PASSWORD);
+#endif
+
+  /* Assign the callback function for the long running token generation task */
+  config.token_status_callback = tokenStatusCallback; // see addons/TokenHelper.h
+
+  // Comment or pass false value when WiFi reconnection will control by your code or third party library e.g. WiFiManager
+  Firebase.reconnectNetwork(true);
+
+  // Since v4.4.x, BearSSL engine was used, the SSL buffer need to be set.
+  // Large data transmission may require larger RX buffer, otherwise connection issue or data read time out can be occurred.
+  fbdo.setBSSLBufferSize(2048 /* Rx buffer size in bytes from 512 - 16384 */, 1024 /* Tx buffer size in bytes from 512 - 16384 */);
+  stream.setBSSLBufferSize(2048 /* Rx buffer size in bytes from 512 - 16384 */, 1024 /* Tx buffer size in bytes from 512 - 16384 */);
+
+  // Or use legacy authenticate method
+  // config.database_url = DATABASE_URL;
+  // config.signer.tokens.legacy_token = "<database secret>";
+
+  // To connect without auth in Test Mode, see Authentications/TestMode/TestMode.ino
+
+  Firebase.begin(&config, &auth);
+
+// You can use TCP KeepAlive For more reliable stream operation and tracking the server connection status, please read this for detail.
+// https://github.com/mobizt/Firebase-ESP-Client#enable-tcp-keepalive-for-reliable-http-streaming
+// You can use keepAlive in ESP8266 core version newer than v3.1.2.
+// Or you can use git version (v3.1.2) https://github.com/esp8266/Arduino
+#if defined(ESP32)
+  stream.keepAlive(5, 5, 1);
+#endif
+
+  if (!Firebase.RTDB.beginStream(&stream, "/elements"))
+    Serial.printf("sream begin error, %s\n\n", stream.errorReason().c_str());
+
+  Firebase.RTDB.setStreamCallback(&stream, streamCallback, streamTimeoutCallback);
+
+  /** Timeout options, below is default config.
+
+  //Network reconnect timeout (interval) in ms (10 sec - 5 min) when network or WiFi disconnected.
+  config.timeout.networkReconnect = 10 * 1000;
+
+  //Socket begin connection timeout (ESP32) or data transfer timeout (ESP8266) in ms (1 sec - 1 min).
+  config.timeout.socketConnection = 30 * 1000;
+
+  //ESP32 SSL handshake in ms (1 sec - 2 min). This option doesn't allow in ESP8266 core library.
+  config.timeout.sslHandshake = 2 * 60 * 1000;
+
+  //Server response read timeout in ms (1 sec - 1 min).
+  config.timeout.serverResponse = 10 * 1000;
+
+  //RTDB Stream keep-alive timeout in ms (20 sec - 2 min) when no server's keep-alive event data received.
+  config.timeout.rtdbKeepAlive = 45 * 1000;
+
+  //RTDB Stream reconnect timeout (interval) in ms (1 sec - 1 min) when RTDB Stream closed and want to resume.
+  config.timeout.rtdbStreamReconnect = 1 * 1000;
+
+  //RTDB Stream error notification timeout (interval) in ms (3 sec - 30 sec). It determines how often the readStream
+  //will return false (error) when it called repeatedly in loop.
+  config.timeout.rtdbStreamError = 3 * 1000;
+
+  */
 }
 
 void loop()
 {
+
+#if !defined(ESP8266) && !defined(ESP32)
+  Firebase.RTDB.runStream();
+#endif
+
+  if (!stream.httpConnected())
+  {
+    Serial.println("WiFi Disconnected");
+  }
 }
