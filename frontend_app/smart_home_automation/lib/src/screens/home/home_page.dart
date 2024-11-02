@@ -27,7 +27,6 @@ class _HomePageState extends State<HomePage> {
               if (snapshot.hasData) {
                 String time = snapshot.data!.snapshot.value.toString();
                 final timeDataList = time.split("-");
-                int hour = (int.parse(timeDataList[3]) + 5) % 24;
                 int minute = int.parse(timeDataList[4]);
                 int second = int.parse(timeDataList[5]);
                 return StreamBuilder(
@@ -38,7 +37,7 @@ class _HomePageState extends State<HomePage> {
                       now.year,
                       now.month,
                       now.day,
-                      hour,
+                      now.hour,
                       minute,
                       second,
                     );
