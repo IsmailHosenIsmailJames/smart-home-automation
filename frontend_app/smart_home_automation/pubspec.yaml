@@ -45,6 +45,7 @@ dependencies:
   get: ^4.6.6
   toastification: ^2.3.0
   fluentui_system_icons: ^1.1.263
+  icons_launcher: ^3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -99,7 +100,10 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
 
-flutter_launcher_icons:
-  android: "launcher_icon"
-  ios: false
+icons_launcher:
   image_path: "assets/logo.jpg"
+  platforms:
+    android:
+      enable: true
+    ios:
+      enable: true
