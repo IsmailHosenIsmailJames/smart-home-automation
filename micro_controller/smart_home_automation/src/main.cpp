@@ -57,10 +57,10 @@ void streamCallback(FirebaseStream data)
   if (dataString.indexOf('"') != -1)
   {
     Serial.printf("sream path, %s\nevent path, %s\ndata type, %s\nevent type, %s\n\n",
-                data.streamPath().c_str(),
-                data.dataPath().c_str(),
-                data.dataType().c_str(),
-                data.eventType().c_str());
+                  data.streamPath().c_str(),
+                  data.dataPath().c_str(),
+                  data.dataType().c_str(),
+                  data.eventType().c_str());
     dataString = dataString.substring(2, dataString.length() - 2);
   }
   else
@@ -210,7 +210,7 @@ void loop()
       dateTime += String(timeInfo.tm_hour);
       dateTime += "-";
       dateTime += String(timeInfo.tm_min);
-      dateTime += "-";  
+      dateTime += "-";
       dateTime += String(timeInfo.tm_sec);
 
       Serial.printf("Set active... %s\n\n", Firebase.RTDB.setString(&fbdo, "/last_active", dateTime) ? "ok" : fbdo.errorReason().c_str());
@@ -222,8 +222,8 @@ void loop()
     dataChanged = false;
     String controllerPath = "/controller";
     controllerPath += dataPath;
-    Firebase.RTDB.setString(&fbdo, controllerPath, valueOnDataPath);
-  }
+      Firebase.RTDB.setString(&fbdo, controllerPath, valueOnDataPath);
+    }
 
   // After calling stream.keepAlive, now we can track the server connecting status
   if (!stream.httpConnected())
