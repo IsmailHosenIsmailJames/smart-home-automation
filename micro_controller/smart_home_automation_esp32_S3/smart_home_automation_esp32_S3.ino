@@ -1,168 +1,233 @@
+#include <Arduino.h>
+#if defined(ESP32) || defined(ARDUINO_RASPBERRY_PI_PICO_W)
 #include <WiFi.h>
-#include <HTTPClient.h>
-#include <Preferences.h>
-#include <ESPAsyncWebServer.h>
-#include <ArduinoJson.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
-#include <Wire.h>
-#include <Adafruit_BMP280.h>
-#include <Adafruit_AHTX0.h>  // Replace with appropriate AHT20 library
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#elif __has_include(<WiFiNINA.h>)
+#include <WiFiNINA.h>
+#elif __has_include(<WiFi101.h>)
+#include <WiFi101.h>
+#elif __has_include(<WiFiS3.h>)
+#include <WiFiS3.h>
+#endif
 
-Adafruit_AHTX0 aht;
-Adafruit_BMP280 bmp;
+#include <Firebase_ESP_Client.h>
+#include <addons/TokenHelper.h>
+#include <addons/RTDBHelper.h>
 
-Preferences preferences;
+#define WIFI_SSID "Ismail"
+#define WIFI_PASSWORD "android147890"
+#define API_KEY "AIzaSyBJAHkEkobTYYrYkQSvsK9rwM2_VrrbV4E"
+#define DATABASE_URL "https://smart-home-automation-724d1-default-rtdb.asia-southeast1.firebasedatabase.app" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
+#define USER_EMAIL "md.ismailhosenismailjames@gmail.com"
+#define USER_PASSWORD "147890"
 
-const char *ssid_AP = "Smart Home Automation";
-const char *password_AP = "12345678";
+// Define Firebase Data object
+FirebaseData stream;
+FirebaseData fbdo;
 
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP);
+FirebaseAuth auth;
+FirebaseConfig config;
 
-AsyncWebServer server(80);
+unsigned long sendDataPrevMillis = 0;
 
-void setup() {
-  Wire.begin(1, 2);  // SDA, SCL
-  pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(9600);
-  if (!bmp.begin()) {
-    Serial.println("Could not find a valid BMP280 sensor, check wiring!");
-    while (1)
-      delay(10);
-  }
-  if (!aht.begin()) {
-    Serial.println("Could not find AHT? Check wiring");
-    while (1)
-      delay(10);
-  }
+int count = 0;
 
-  WiFi.mode(WIFI_AP_STA);
-  // Initialize preferences
-  preferences.begin("my-app", false);
+volatile bool dataChanged = false;
 
-  // open hotspot to Wi-Fi
-  WiFi.softAP(ssid_AP, password_AP);
-  Serial.print("Access Point IP Address: ");
-  Serial.println(WiFi.softAPIP());
+#if defined(ARDUINO_RASPBERRY_PI_PICO_W)
+WiFiMulti multi;
+#endif
 
-  bool isWifiSet = preferences.getBool("isWifiSet", false);
-  if (isWifiSet == true) {
-    Serial.println("Connecting to WiFi...");
-    String defaultValue = String();
-    String ssid = preferences.getString("ssid", defaultValue);
-    String password = preferences.getString("password", defaultValue);
-    WiFi.begin(ssid, password);
-    for (int i = 300; i > 0; i--) {
-      if (WiFi.status() != WL_CONNECTED) {
-        delay(100);
-      } else {
-        break;
-      }
-    }
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.println(WiFi.localIP());
-    }
+String dataPath;
+String valueOnDataPath;
 
-    timeClient.begin();
-  }
+const char *ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 0;
+const int daylightOffset_sec = 3600;
+struct tm timeInfo;
 
-  // Endpoint to receive JSON data via POST
-  server.on(
-    "/connect_wifi", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-      // Allocate JsonDocument and parse JSON data
-      JsonDocument jsonDoc;
-      DeserializationError error = deserializeJson(jsonDoc, (char *)data);
-
-      if (error) {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-        return;
-      }
-
-      // Extract values from JSON
-      const char *getSSID = jsonDoc["ssid"];
-      const char *getPassword = jsonDoc["password"];
-
-      WiFi.begin(getSSID, getPassword);
-      for (int i = 300; i > 0; i--) {
-        if (WiFi.status() != WL_CONNECTED) {
-          delay(100);
-        } else {
-          break;
-        }
-      }
-      if (WiFi.status() == WL_CONNECTED) {
-        preferences.clear();
-        Serial.println("Connected");
-        preferences.putBool("isWifiSet", true);
-        preferences.putString("ssid", getSSID);
-        preferences.putString("password", getPassword);
-        request->send(200, "application/text", "connected");
-      } else {
-        request->send(500, "application/text", "unable to connect");
-      }
-    });
-
-  // Endpoint to set state by JSON
-  server.on(
-    "/set_data", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-      // Allocate JsonDocument and parse JSON data
-      JsonDocument jsonDoc;
-      DeserializationError error = deserializeJson(jsonDoc, (char *)data);
-
-      if (error) {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-        return;
-      }
-
-      int state = jsonDoc["light1"];
-      Serial.println(state);
-      if (state == -1) {
-        digitalWrite(LED_BUILTIN, LOW);
-        Serial.println("Light 1 LOW ");
-      } else if (state == 1) {
-        digitalWrite(LED_BUILTIN, HIGH);
-        Serial.println("Light 1 HIGH ");
-      } else if (state == 0) {
-        Serial.println("Light 1 is 0 ");
-      }
-
-      String jsonToSend;
-      serializeJson(jsonDoc, jsonToSend);
-      Serial.println(jsonToSend);
-      request->send(200, "application/json", jsonToSend);
-    });
-
-  // Endpoint to set state by JSON
-  server.on(
-    "/get_sensor_data", HTTP_POST, [](AsyncWebServerRequest *request) {
-      // Allocate JsonDocument and parse JSON data
-
-      JsonDocument jsonDocument;
-
-      sensors_event_t humidity, temp;
-      aht.getEvent(&humidity, &temp);  // populate temp and humidity objects with fresh data
-      jsonDocument.add(bmp.readTemperature());
-      jsonDocument.add(temp.temperature);
-      jsonDocument.add(humidity.relative_humidity);
-      jsonDocument.add(bmp.readAltitude(101325));
-      jsonDocument.add(bmp.readPressure());
-
-      Serial.print("Sensor Data : ");
-      String jsonToSend;
-      serializeJson(jsonDocument, jsonToSend);
-
-      request->send(200, "application/text", jsonToSend);
-    });
-
-  server.begin();
-}
-
-void setStateLight1BOS()  // BOS = Based on sensor
+void streamCallback(FirebaseStream data)
 {
+
+  dataPath = "";
+  valueOnDataPath = "";
+
+  String dataString = data.stringData();
+  if (dataString.indexOf('"') != -1)
+  {
+    Serial.printf("sream path, %s\nevent path, %s\ndata type, %s\nevent type, %s\n\n",
+                data.streamPath().c_str(),
+                data.dataPath().c_str(),
+                data.dataType().c_str(),
+                data.eventType().c_str());
+    dataString = dataString.substring(2, dataString.length() - 2);
+  }
+  else
+  {
+    dataChanged = true;
+  }
+
+  Serial.println(dataString);
+  Serial.println(data.dataPath());
+
+  size_t len = dataString.length();
+  String value = "";
+  int i = 0;
+  for (i; i < len; i++)
+  {
+    if (dataString[i] == ':')
+    {
+      break;
+    }
+    value += dataString[i];
+  }
+
+  Serial.println("pin: ");
+  Serial.println(value);
+
+  int pin = value.toInt();
+
+  value = "";
+  i++;
+  for (i; i < len; i++)
+  {
+    if (dataString[i] == ':')
+    {
+      break;
+    }
+    value += dataString[i];
+  }
+  Serial.println("State: ");
+  Serial.println(value);
+
+  int state = value.toInt();
+
+  // switch state
+  digitalWrite(pin, state == 1 ? HIGH : LOW);
+
+  Serial.println(pin);
+  Serial.println(state);
+
+  dataPath = data.dataPath();
+  valueOnDataPath = dataString;
 }
 
-void loop() {
+void streamTimeoutCallback(bool timeout)
+{
+  if (timeout)
+    Serial.println("stream timed out, resuming...\n");
+
+  if (!stream.httpConnected())
+    Serial.printf("error code: %d, reason: %s\n\n", stream.httpCode(), stream.errorReason().c_str());
+}
+
+void setup()
+{
+
+  Serial.begin(115200);
+
+#if defined(ARDUINO_RASPBERRY_PI_PICO_W)
+  multi.addAP(WIFI_SSID, WIFI_PASSWORD);
+  multi.run();
+#else
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+#endif
+
+  Serial.print("Connecting to Wi-Fi");
+  unsigned long ms = millis();
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(300);
+#if defined(ARDUINO_RASPBERRY_PI_PICO_W)
+    if (millis() - ms > 10000)
+      break;
+#endif
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  Serial.printf("Firebase Client v%s\n\n", FIREBASE_CLIENT_VERSION);
+
+  config.api_key = API_KEY;
+  auth.user.email = USER_EMAIL;
+  auth.user.password = USER_PASSWORD;
+  config.database_url = DATABASE_URL;
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+#if defined(ARDUINO_RASPBERRY_PI_PICO_W)
+  config.wifi.clearAP();
+  config.wifi.addAP(WIFI_SSID, WIFI_PASSWORD);
+#endif
+
+  config.token_status_callback = tokenStatusCallback; // see addons/TokenHelper.h
+  Firebase.reconnectNetwork(true);
+
+  // Since v4.4.x, BearSSL engine was used, the SSL buffer need to be set.
+  // Large data transmission may require larger RX buffer, otherwise connection issue or data read time out can be occurred.
+  fbdo.setBSSLBufferSize(2048 /* Rx buffer size in bytes from 512 - 16384 */, 1024 /* Tx buffer size in bytes from 512 - 16384 */);
+  stream.setBSSLBufferSize(2048 /* Rx buffer size in bytes from 512 - 16384 */, 1024 /* Tx buffer size in bytes from 512 - 16384 */);
+  Firebase.begin(&config, &auth);
+
+#if defined(ESP32)
+  stream.keepAlive(5, 5, 1);
+#endif
+
+  if (!Firebase.RTDB.beginStream(&stream, "/app"))
+    Serial.printf("sream begin error, %s\n\n", stream.errorReason().c_str());
+
+  Firebase.RTDB.setStreamCallback(&stream, streamCallback, streamTimeoutCallback);
+}
+
+void loop()
+{
+
+  // Firebase.ready() should be called repeatedly to handle authentication tasks.
+
+#if !defined(ESP8266) && !defined(ESP32)
+  Firebase.RTDB.runStream();
+#endif
+
+  if (Firebase.ready() && (millis() - sendDataPrevMillis > 10000 || sendDataPrevMillis == 0))
+  {
+    sendDataPrevMillis = millis();
+    if (!getLocalTime(&timeInfo))
+    {
+      Serial.println("Failed to obtain time");
+      return;
+    }
+    else
+    {
+      String dateTime = "";
+      dateTime += String(timeInfo.tm_year);
+      dateTime += "-";
+      dateTime += String(timeInfo.tm_mon);
+      dateTime += "-";
+      dateTime += String(timeInfo.tm_mday);
+      dateTime += "-";
+      dateTime += String(timeInfo.tm_hour);
+      dateTime += "-";
+      dateTime += String(timeInfo.tm_min);
+      dateTime += "-";  
+      dateTime += String(timeInfo.tm_sec);
+
+      Serial.printf("Set active... %s\n\n", Firebase.RTDB.setString(&fbdo, "/last_active", dateTime) ? "ok" : fbdo.errorReason().c_str());
+    }
+  }
+
+  if (dataChanged)
+  {
+    dataChanged = false;
+    String controllerPath = "/controller";
+    controllerPath += dataPath;
+    Firebase.RTDB.setString(&fbdo, controllerPath, valueOnDataPath);
+  }
+
+  // After calling stream.keepAlive, now we can track the server connecting status
+  if (!stream.httpConnected())
+  {
+    // Server was disconnected!
+  }
 }

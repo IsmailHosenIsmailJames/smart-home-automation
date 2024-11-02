@@ -1,14 +1,3 @@
-/**
- * Created by K. Suwatchai (Mobizt)
- *
- * Email: k_suwatchai@hotmail.com
- *
- * Github: https://github.com/mobizt/Firebase-ESP-Client
- *
- * Copyright (c) 2023 mobizt
- *
- */
-
 #include <Arduino.h>
 #if defined(ESP32) || defined(ARDUINO_RASPBERRY_PI_PICO_W)
 #include <WiFi.h>
@@ -23,26 +12,13 @@
 #endif
 
 #include <Firebase_ESP_Client.h>
-
-// Provide the token generation process info.
 #include <addons/TokenHelper.h>
-
-// Provide the RTDB payload printing info and other helper functions.
 #include <addons/RTDBHelper.h>
 
-/* 1. Define the WiFi credentials */
 #define WIFI_SSID "Ismail"
 #define WIFI_PASSWORD "android147890"
-
-// For the following credentials, see examples/Authentications/SignInAsUser/EmailPassword/EmailPassword.ino
-
-/* 2. Define the API Key */
 #define API_KEY "AIzaSyBJAHkEkobTYYrYkQSvsK9rwM2_VrrbV4E"
-
-/* 3. Define the RTDB URL */
 #define DATABASE_URL "https://smart-home-automation-724d1-default-rtdb.asia-southeast1.firebasedatabase.app" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
-
-/* 4. Define the user Email and password that already registered or added in your project */
 #define USER_EMAIL "md.ismailhosenismailjames@gmail.com"
 #define USER_PASSWORD "147890"
 
@@ -63,61 +39,78 @@ volatile bool dataChanged = false;
 WiFiMulti multi;
 #endif
 
-String statePath = "/";
+String dataPath;
+String valueOnDataPath;
+
+const char *ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 0;
+const int daylightOffset_sec = 3600;
+struct tm timeInfo;
 
 void streamCallback(FirebaseStream data)
 {
-  Serial.println("Data Changed");
-  FirebaseJson &json = data.jsonObject();
-  FirebaseJsonData pin, state, names;
-  json.get(names, "/names");
-  String namesList[100];
 
-  String stringName = names.to<String>();
-  size_t lenOfNames = stringName.length();
-  size_t indexOfFirst = stringName.indexOf(":");
-  size_t insertIndex = 0;
-  while (indexOfFirst != -1)
+  dataPath = "";
+  valueOnDataPath = "";
+
+  String dataString = data.stringData();
+  if (dataString.indexOf('"') != -1)
   {
-    namesList[insertIndex] = stringName.substring(0, indexOfFirst);
-    insertIndex++;
-    stringName = stringName.substring(indexOfFirst + 1, lenOfNames);
-    indexOfFirst = stringName.indexOf(":");
+    Serial.printf("sream path, %s\nevent path, %s\ndata type, %s\nevent type, %s\n\n",
+                data.streamPath().c_str(),
+                data.dataPath().c_str(),
+                data.dataType().c_str(),
+                data.eventType().c_str());
+    dataString = dataString.substring(2, dataString.length() - 2);
+  }
+  else
+  {
+    dataChanged = true;
   }
 
-  Serial.println("NAme Length");
-  Serial.println(namesList[0]);
+  Serial.println(dataString);
+  Serial.println(data.dataPath());
 
-  for (int i = 0; i < 100; i++)
+  size_t len = dataString.length();
+  String value = "";
+  int i = 0;
+  for (i; i < len; i++)
   {
-    if (namesList[i].length() != 0)
+    if (dataString[i] == ':')
     {
-      String pinPath = "/";
-      statePath = "/";
-      pinPath += namesList[i];
-      statePath += namesList[i];
-      pinPath += "/pin";
-      statePath += "/state";
-      json.get(pin, pinPath);
-      json.get(state, statePath);
-
-      Serial.println(pin.to<int>());
-      Serial.println(state.to<bool>());
-
-      if (state.to<bool>() == true)
-      {
-        digitalWrite(pin.to<int>(), HIGH);
-        Serial.println(" id ON");
-      }
-      else
-      {
-        digitalWrite(pin.to<int>(), LOW);
-        Serial.println(" is OFF");
-      }
+      break;
     }
+    value += dataString[i];
   }
 
-  dataChanged = true;
+  Serial.println("pin: ");
+  Serial.println(value);
+
+  int pin = value.toInt();
+
+  value = "";
+  i++;
+  for (i; i < len; i++)
+  {
+    if (dataString[i] == ':')
+    {
+      break;
+    }
+    value += dataString[i];
+  }
+  Serial.println("State: ");
+  Serial.println(value);
+
+  int state = value.toInt();
+
+  // switch state
+  digitalWrite(pin, state == 1 ? HIGH : LOW);
+
+  Serial.println(pin);
+  Serial.println(state);
+
+  dataPath = data.dataPath();
+  valueOnDataPath = dataString;
 }
 
 void streamTimeoutCallback(bool timeout)
@@ -159,91 +152,82 @@ void setup()
 
   Serial.printf("Firebase Client v%s\n\n", FIREBASE_CLIENT_VERSION);
 
-  /* Assign the api key (required) */
   config.api_key = API_KEY;
-
-  /* Assign the user sign in credentials */
   auth.user.email = USER_EMAIL;
   auth.user.password = USER_PASSWORD;
-
-  /* Assign the RTDB URL (required) */
   config.database_url = DATABASE_URL;
-
-  // The WiFi credentials are required for Pico W
-  // due to it does not have reconnect feature.
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 #if defined(ARDUINO_RASPBERRY_PI_PICO_W)
   config.wifi.clearAP();
   config.wifi.addAP(WIFI_SSID, WIFI_PASSWORD);
 #endif
 
-  /* Assign the callback function for the long running token generation task */
   config.token_status_callback = tokenStatusCallback; // see addons/TokenHelper.h
-
-  // Comment or pass false value when WiFi reconnection will control by your code or third party library e.g. WiFiManager
   Firebase.reconnectNetwork(true);
 
   // Since v4.4.x, BearSSL engine was used, the SSL buffer need to be set.
   // Large data transmission may require larger RX buffer, otherwise connection issue or data read time out can be occurred.
   fbdo.setBSSLBufferSize(2048 /* Rx buffer size in bytes from 512 - 16384 */, 1024 /* Tx buffer size in bytes from 512 - 16384 */);
   stream.setBSSLBufferSize(2048 /* Rx buffer size in bytes from 512 - 16384 */, 1024 /* Tx buffer size in bytes from 512 - 16384 */);
-
-  // Or use legacy authenticate method
-  // config.database_url = DATABASE_URL;
-  // config.signer.tokens.legacy_token = "<database secret>";
-
-  // To connect without auth in Test Mode, see Authentications/TestMode/TestMode.ino
-
   Firebase.begin(&config, &auth);
 
-// You can use TCP KeepAlive For more reliable stream operation and tracking the server connection status, please read this for detail.
-// https://github.com/mobizt/Firebase-ESP-Client#enable-tcp-keepalive-for-reliable-http-streaming
-// You can use keepAlive in ESP8266 core version newer than v3.1.2.
-// Or you can use git version (v3.1.2) https://github.com/esp8266/Arduino
 #if defined(ESP32)
   stream.keepAlive(5, 5, 1);
 #endif
 
-  if (!Firebase.RTDB.beginStream(&stream, "/elements"))
+  if (!Firebase.RTDB.beginStream(&stream, "/app"))
     Serial.printf("sream begin error, %s\n\n", stream.errorReason().c_str());
 
   Firebase.RTDB.setStreamCallback(&stream, streamCallback, streamTimeoutCallback);
-
-  /** Timeout options, below is default config.
-
-  //Network reconnect timeout (interval) in ms (10 sec - 5 min) when network or WiFi disconnected.
-  config.timeout.networkReconnect = 10 * 1000;
-
-  //Socket begin connection timeout (ESP32) or data transfer timeout (ESP8266) in ms (1 sec - 1 min).
-  config.timeout.socketConnection = 30 * 1000;
-
-  //ESP32 SSL handshake in ms (1 sec - 2 min). This option doesn't allow in ESP8266 core library.
-  config.timeout.sslHandshake = 2 * 60 * 1000;
-
-  //Server response read timeout in ms (1 sec - 1 min).
-  config.timeout.serverResponse = 10 * 1000;
-
-  //RTDB Stream keep-alive timeout in ms (20 sec - 2 min) when no server's keep-alive event data received.
-  config.timeout.rtdbKeepAlive = 45 * 1000;
-
-  //RTDB Stream reconnect timeout (interval) in ms (1 sec - 1 min) when RTDB Stream closed and want to resume.
-  config.timeout.rtdbStreamReconnect = 1 * 1000;
-
-  //RTDB Stream error notification timeout (interval) in ms (3 sec - 30 sec). It determines how often the readStream
-  //will return false (error) when it called repeatedly in loop.
-  config.timeout.rtdbStreamError = 3 * 1000;
-
-  */
 }
 
 void loop()
 {
 
+  // Firebase.ready() should be called repeatedly to handle authentication tasks.
+
 #if !defined(ESP8266) && !defined(ESP32)
   Firebase.RTDB.runStream();
 #endif
 
+  if (Firebase.ready() && (millis() - sendDataPrevMillis > 10000 || sendDataPrevMillis == 0))
+  {
+    sendDataPrevMillis = millis();
+    if (!getLocalTime(&timeInfo))
+    {
+      Serial.println("Failed to obtain time");
+      return;
+    }
+    else
+    {
+      String dateTime = "";
+      dateTime += String(timeInfo.tm_year);
+      dateTime += "-";
+      dateTime += String(timeInfo.tm_mon);
+      dateTime += "-";
+      dateTime += String(timeInfo.tm_mday);
+      dateTime += "-";
+      dateTime += String(timeInfo.tm_hour);
+      dateTime += "-";
+      dateTime += String(timeInfo.tm_min);
+      dateTime += "-";  
+      dateTime += String(timeInfo.tm_sec);
+
+      Serial.printf("Set active... %s\n\n", Firebase.RTDB.setString(&fbdo, "/last_active", dateTime) ? "ok" : fbdo.errorReason().c_str());
+    }
+  }
+
+  if (dataChanged)
+  {
+    dataChanged = false;
+    String controllerPath = "/controller";
+    controllerPath += dataPath;
+    Firebase.RTDB.setString(&fbdo, controllerPath, valueOnDataPath);
+  }
+
+  // After calling stream.keepAlive, now we can track the server connecting status
   if (!stream.httpConnected())
   {
-    Serial.println("WiFi Disconnected");
+    // Server was disconnected!
   }
 }
