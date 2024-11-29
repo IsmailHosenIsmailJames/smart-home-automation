@@ -47,7 +47,7 @@ class DefaultFirebaseOptions {
     projectId: 'smart-home-automation-724d1',
     authDomain: 'smart-home-automation-724d1.firebaseapp.com',
     databaseURL: 'https://smart-home-automation-724d1-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'smart-home-automation-724d1.appspot.com',
+    storageBucket: 'smart-home-automation-724d1.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -56,7 +56,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '893114148393',
     projectId: 'smart-home-automation-724d1',
     databaseURL: 'https://smart-home-automation-724d1-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'smart-home-automation-724d1.appspot.com',
+    storageBucket: 'smart-home-automation-724d1.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -65,7 +65,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '893114148393',
     projectId: 'smart-home-automation-724d1',
     databaseURL: 'https://smart-home-automation-724d1-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'smart-home-automation-724d1.appspot.com',
+    storageBucket: 'smart-home-automation-724d1.firebasestorage.app',
     iosBundleId: 'com.example.smartHomeAutomation',
   );
 
@@ -75,7 +75,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '893114148393',
     projectId: 'smart-home-automation-724d1',
     databaseURL: 'https://smart-home-automation-724d1-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'smart-home-automation-724d1.appspot.com',
+    storageBucket: 'smart-home-automation-724d1.firebasestorage.app',
     iosBundleId: 'com.example.smartHomeAutomation',
   );
 
@@ -86,6 +86,7 @@ class DefaultFirebaseOptions {
     projectId: 'smart-home-automation-724d1',
     authDomain: 'smart-home-automation-724d1.firebaseapp.com',
     databaseURL: 'https://smart-home-automation-724d1-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'smart-home-automation-724d1.appspot.com',
+    storageBucket: 'smart-home-automation-724d1.firebasestorage.app',
   );
+
 }

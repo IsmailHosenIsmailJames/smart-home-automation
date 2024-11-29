@@ -3,9 +3,28 @@
     "project_number": "893114148393",
     "firebase_url": "https://smart-home-automation-724d1-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "smart-home-automation-724d1",
-    "storage_bucket": "smart-home-automation-724d1.appspot.com"
+    "storage_bucket": "smart-home-automation-724d1.firebasestorage.app"
   },
   "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:893114148393:android:162d9bc1ac9ef458cede38",
+        "android_client_info": {
+          "package_name": "com.example.smart_hom"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfp9L0InVvwXptcF4yRaTZCpAroro9ro4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
     {
       "client_info": {
         "mobilesdk_app_id": "1:893114148393:android:bb7e0c310ddcc1d9cede38",
