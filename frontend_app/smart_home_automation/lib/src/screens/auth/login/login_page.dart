@@ -1,8 +1,13 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:email_validator/email_validator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:get/get.dart';
+import 'package:hive/hive.dart';
+import 'package:smart_home_automation/src/screens/auth/registration/registration_page.dart';
+import 'package:smart_home_automation/src/screens/home/home_page.dart';
 import 'package:smart_home_automation/src/theme/colors.dart';
 
 class LoginPage extends StatefulWidget {
@@ -103,10 +108,30 @@ class _LoginPageState extends State<LoginPage> {
                             title: Text("Logging in..."),
                           ),
                         );
-                        await FirebaseAuth.instance.signInWithEmailAndPassword(
+                        UserCredential userCredential = await FirebaseAuth
+                            .instance
+                            .signInWithEmailAndPassword(
                           email: email.text,
                           password: password.text,
                         );
+                        User? user = userCredential.user;
+                        if (user != null) {
+                          final userData = await FirebaseFirestore.instance
+                              .collection("user")
+                              .doc(user.uid)
+                              .get();
+
+                          if (userData.exists && userData.data() != null) {
+                            final data = userData.data();
+                            await Hive.box('info').put("userInfo", {
+                              "name": data!['name'],
+                              "phone": data['phone'],
+                              "password": password.text,
+                              "uid": user.uid,
+                            });
+                            Get.off(() => HomePage());
+                          }
+                        }
                         Navigator.pop(context);
                       }
                     },
@@ -118,6 +143,25 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
+                Gap(30),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text("Have no account?"),
+                    TextButton(
+                      onPressed: () {
+                        Get.off(() => RegistrationPage());
+                      },
+                      child: Text(
+                        "register",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
               ],
             ),
           ),

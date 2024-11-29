@@ -1,6 +1,6 @@
-import 'dart:convert';
 import 'dart:developer';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -14,6 +14,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final User user = FirebaseAuth.instance.currentUser!;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -21,54 +22,41 @@ class _HomePageState extends State<HomePage> {
         title: const Text("Dynamic Automation"),
         actions: [
           StreamBuilder(
-            stream:
-                FirebaseDatabase.instance.ref().child('/last_active').onValue,
+            stream: FirebaseDatabase.instance
+                .ref(user.uid)
+                .child('/last_active')
+                .onValue,
             builder: (context, snapshot) {
               if (snapshot.hasData) {
-                String time = snapshot.data!.snapshot.value.toString();
-                final timeDataList = time.split("-");
-                int minute = int.parse(timeDataList[4]);
-                int second = int.parse(timeDataList[5]);
-                return StreamBuilder(
-                  stream: Stream.periodic(Duration(seconds: 1)),
-                  builder: (context, snapshot) {
-                    final now = DateTime.now();
-                    final lastUpdateTime = DateTime(
-                      now.year,
-                      now.month,
-                      now.day,
-                      now.hour,
-                      minute,
-                      second,
-                    );
-                    final difference =
-                        now.difference(lastUpdateTime).inSeconds.abs();
-                    log("Signal got $difference seconds earlier");
-                    return Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(15),
-                        color: difference > 30 ? Colors.red : Colors.green,
-                      ),
-                      padding: EdgeInsets.only(
-                        left: 10,
-                        right: 10,
-                        top: 2,
-                        bottom: 2,
-                      ),
-                      margin: EdgeInsets.only(
-                        right: 10,
-                      ),
-                      child: Text(
-                        difference > 30 ? "Offline" : "Active",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    );
-                  },
-                );
+                if (snapshot.data == null) {
+                  return unActiveWidget;
+                }
+                try {
+                  String time = snapshot.data!.snapshot.value.toString();
+                  final timeDataList = time.split("-");
+                  int minute = int.parse(timeDataList[4]);
+                  int second = int.parse(timeDataList[5]);
+                  return StreamBuilder(
+                    stream: Stream.periodic(Duration(seconds: 1)),
+                    builder: (context, snapshot) {
+                      final now = DateTime.now();
+                      final lastUpdateTime = DateTime(
+                        now.year,
+                        now.month,
+                        now.day,
+                        now.hour,
+                        minute,
+                        second,
+                      );
+                      final difference =
+                          now.difference(lastUpdateTime).inSeconds.abs();
+                      log("Signal got $difference seconds earlier");
+                      return difference > 30 ? unActiveWidget : activeWidget;
+                    },
+                  );
+                } catch (e) {
+                  return unActiveWidget;
+                }
               } else {
                 if (snapshot.hasError) {
                   return Center(
@@ -78,6 +66,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   );
                 }
+
                 return Center(
                   child: SizedBox(
                     height: 50,
@@ -102,16 +91,26 @@ class _HomePageState extends State<HomePage> {
                 margin: EdgeInsets.all(20),
                 padding: EdgeInsets.all(20),
                 child: StreamBuilder(
-                  stream: FirebaseDatabase.instance.ref().child('/app').onValue,
+                  stream: FirebaseDatabase.instance
+                      .ref(user.uid)
+                      .child('/app')
+                      .onValue,
                   builder: (context, snapshot) {
                     if (snapshot.hasData) {
-                      final data = snapshot.data!.snapshot.value!;
-                      List<String> dataList = List<String>.from(
-                        jsonDecode(
-                          jsonEncode(data),
-                        ),
-                      );
-                      return appStateWidget(dataList);
+                      try {
+                        final data = snapshot.data!.snapshot.value!;
+                        if (data.toString().isEmpty) {
+                          return appStateWidget([]);
+                        }
+
+                        List<String> dataList = data.toString().split(',');
+
+                        return appStateWidget(dataList);
+                      } catch (e) {
+                        return Center(
+                          child: Text("Unable to process"),
+                        );
+                      }
                     } else {
                       if (snapshot.hasError) {
                         return Center(
@@ -136,18 +135,24 @@ class _HomePageState extends State<HomePage> {
                 padding: EdgeInsets.all(20),
                 child: StreamBuilder(
                   stream: FirebaseDatabase.instance
-                      .ref()
+                      .ref(user.uid)
                       .child('/controller')
                       .onValue,
                   builder: (context, snapshot) {
                     if (snapshot.hasData) {
-                      final data = snapshot.data!.snapshot.value!;
-                      List<String> dataList = List<String>.from(
-                        jsonDecode(
-                          jsonEncode(data),
-                        ),
-                      );
-                      return controllerStateWidget(dataList);
+                      try {
+                        final data = snapshot.data!.snapshot.value!;
+                        if (data.toString().isEmpty) {
+                          return controllerStateWidget([]);
+                        }
+                        List<String> dataList = data.toString().split(',');
+
+                        return controllerStateWidget(dataList);
+                      } catch (e) {
+                        return Center(
+                          child: Text("Unable to process"),
+                        );
+                      }
                     } else {
                       if (snapshot.hasError) {
                         return Center(
@@ -184,85 +189,102 @@ class _HomePageState extends State<HomePage> {
         Divider(
           color: Colors.black,
         ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: dataList.length,
-            itemBuilder: (context, index) {
-              List<String> infoList = dataList[index].split(":");
-              if (infoList.length != 3) return Container();
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 100,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.blue.shade700,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: EdgeInsets.only(
-                      left: 10,
-                      top: 3,
-                      bottom: 3,
-                      right: 10,
-                    ),
-                    margin: EdgeInsets.only(
-                      top: 3,
-                      bottom: 3,
-                    ),
-                    child: Text(infoList[2]),
-                  ),
-                  Container(
-                    color: Colors.blue.shade700,
-                    width: MediaQuery.of(context).size.width * 0.05,
-                    height: 1,
-                  ),
-                  Container(
-                    width: 80,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.blue.shade700,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: EdgeInsets.only(
-                      left: 10,
-                      top: 3,
-                      bottom: 3,
-                      right: 10,
-                    ),
-                    margin: EdgeInsets.only(
-                      top: 3,
-                      bottom: 3,
-                    ),
-                    child: Text("Pin: ${infoList[0]}"),
-                  ),
-                  Container(
-                    color: Colors.blue.shade700,
-                    width: MediaQuery.of(context).size.width * 0.05,
-                    height: 1,
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.blue.shade700,
-                      ),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    height: 40,
-                    margin: EdgeInsets.only(top: 5, bottom: 5),
-                    child: Switch.adaptive(
-                      value: infoList[1] == "1",
-                      onChanged: (value) {},
-                    ),
-                  )
-                ],
-              );
-            },
-          ),
-        ),
+        dataList.isEmpty
+            ? Text("Empty")
+            : Expanded(
+                child: ListView.builder(
+                  itemCount: dataList.length,
+                  itemBuilder: (context, index) {
+                    if (dataList[index].isEmpty) return SizedBox();
+                    List<String> infoList = dataList[index].split(":");
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 75,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.blue.shade700,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: EdgeInsets.only(
+                            left: 10,
+                            top: 3,
+                            bottom: 3,
+                            right: 10,
+                          ),
+                          margin: EdgeInsets.only(
+                            top: 3,
+                            bottom: 3,
+                          ),
+                          child: FittedBox(
+                            child: FutureBuilder(
+                              future: FirebaseDatabase.instance
+                                  .ref(user.uid)
+                                  .child("name")
+                                  .child(infoList[0].toString())
+                                  .get(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  return Text(
+                                      snapshot.data?.value.toString() ?? "");
+                                }
+                                return Text("...");
+                              },
+                            ),
+                          ),
+                        ),
+                        Container(
+                          color: Colors.blue.shade700,
+                          width: MediaQuery.of(context).size.width * 0.05,
+                          height: 1,
+                        ),
+                        Container(
+                          width: 80,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.blue.shade700,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: EdgeInsets.only(
+                            left: 10,
+                            top: 3,
+                            bottom: 3,
+                            right: 10,
+                          ),
+                          margin: EdgeInsets.only(
+                            top: 3,
+                            bottom: 3,
+                          ),
+                          child: Text("Pin: ${infoList[0]}"),
+                        ),
+                        Container(
+                          color: Colors.blue.shade700,
+                          width: MediaQuery.of(context).size.width * 0.05,
+                          height: 1,
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.blue.shade700,
+                            ),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          height: 40,
+                          margin: EdgeInsets.only(top: 5, bottom: 5),
+                          child: Switch.adaptive(
+                            value: infoList[1] == "1",
+                            onChanged: (value) {},
+                          ),
+                        )
+                      ],
+                    );
+                  },
+                ),
+              ),
       ],
     );
   }
@@ -316,117 +338,11 @@ class _HomePageState extends State<HomePage> {
                       TextEditingController();
 
                   final formKey = GlobalKey<FormState>();
-                  showDialog(
-                      context: context,
-                      builder: (context) {
-                        return Dialog(
-                          insetPadding: EdgeInsets.all(10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Form(
-                            key: formKey,
-                            child: Container(
-                              height: 300,
-                              padding: EdgeInsets.all(20),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    "Add new element",
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Divider(color: Colors.black),
-                                  Gap(15),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade300,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    padding: EdgeInsets.only(left: 10),
-                                    child: TextFormField(
-                                      controller: pinController,
-                                      validator: (value) {
-                                        if (int.tryParse(value ?? "") == null) {
-                                          return "Enter valid pin number";
-                                        } else {
-                                          return null;
-                                        }
-                                      },
-                                      autovalidateMode:
-                                          AutovalidateMode.onUserInteraction,
-                                      decoration: InputDecoration(
-                                        border: InputBorder.none,
-                                        hintText: "type Pin number here",
-                                      ),
-                                    ),
-                                  ),
-                                  Gap(10),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade300,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    padding: EdgeInsets.only(left: 10),
-                                    child: TextFormField(
-                                      controller: nameController,
-                                      validator: (value) {
-                                        if (value == null ||
-                                            value.isEmpty ||
-                                            value.length > 20) {
-                                          return "Enter element name between 1 to 20 characters";
-                                        } else {
-                                          return null;
-                                        }
-                                      },
-                                      autovalidateMode:
-                                          AutovalidateMode.onUserInteraction,
-                                      decoration: InputDecoration(
-                                        border: InputBorder.none,
-                                        hintText: "type element name here..",
-                                      ),
-                                    ),
-                                  ),
-                                  Gap(20),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 40,
-                                    child: ElevatedButton.icon(
-                                      onPressed: () {
-                                        if (formKey.currentState!.validate()) {
-                                          FirebaseDatabase.instance
-                                              .ref()
-                                              .child("/app/${dataList.length}")
-                                              .set(
-                                                  "${pinController.text}:0:${nameController.text.trim()}")
-                                              .then(
-                                            (value) {
-                                              Navigator.pop(context);
-                                              toastification.show(
-                                                context: context,
-                                                title:
-                                                    Text("Added successfully"),
-                                                type:
-                                                    ToastificationType.success,
-                                              );
-                                            },
-                                          );
-                                        }
-                                      },
-                                      icon: Icon(Icons.add),
-                                      label: Text(
-                                        "Add",
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      });
+                  onAddNewElement(
+                    formKey,
+                    pinController,
+                    nameController,
+                  );
                 },
                 icon: Icon(Icons.add),
               ),
@@ -436,107 +352,275 @@ class _HomePageState extends State<HomePage> {
         Divider(
           color: Colors.black,
         ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: dataList.length,
-            itemBuilder: (context, index) {
-              List<String> infoList = dataList[index].split(":");
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 100,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.blue.shade700,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: EdgeInsets.only(
-                      left: 10,
-                      top: 3,
-                      bottom: 3,
-                      right: 10,
-                    ),
-                    margin: EdgeInsets.only(
-                      top: 3,
-                      bottom: 3,
-                    ),
-                    child: FittedBox(
-                      child: Text(
-                        infoList[2],
-                      ),
-                    ),
-                  ),
-                  Container(
-                    color: Colors.blue.shade700,
-                    width: MediaQuery.of(context).size.width * 0.05,
-                    height: 1,
-                  ),
-                  Container(
-                    width: 80,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.blue.shade700,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: EdgeInsets.only(
-                      left: 10,
-                      top: 3,
-                      bottom: 3,
-                      right: 10,
-                    ),
-                    margin: EdgeInsets.only(
-                      top: 3,
-                      bottom: 3,
-                    ),
-                    child: Text("Pin: ${infoList[0]}"),
-                  ),
-                  Container(
-                    color: Colors.blue.shade700,
-                    width: MediaQuery.of(context).size.width * 0.05,
-                    height: 1,
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.blue.shade700,
-                      ),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    height: 40,
-                    margin: EdgeInsets.only(top: 5, bottom: 5),
-                    child: Switch.adaptive(
-                      value: infoList[1] == "1",
-                      onChanged: (value) async {
-                        await FirebaseDatabase.instance
-                            .ref()
-                            .child('/app/$index')
-                            .set(
-                              "${infoList[0]}:${value ? "1" : "0"}:${infoList[2]}",
-                            )
-                            .then((v) {
-                          toastification.show(
-                            context: context,
-                            title: Text(
-                                "${infoList[2]} is now ${value ? "ON" : "OFF"}"),
-                            autoCloseDuration: const Duration(seconds: 2),
-                          );
-                        });
-                      },
-                    ),
-                  )
-                ],
-              );
-            },
-          ),
-        ),
+        dataList.isEmpty
+            ? Text("Empty")
+            : Expanded(
+                child: ListView.builder(
+                  itemCount: dataList.length,
+                  itemBuilder: (context, index) {
+                    if (dataList[index].contains(':') == false) {
+                      return SizedBox();
+                    }
+                    List<String> infoList = dataList[index].split(":");
+
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 100,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.blue.shade700,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: EdgeInsets.only(
+                            left: 10,
+                            top: 3,
+                            bottom: 3,
+                            right: 10,
+                          ),
+                          margin: EdgeInsets.only(
+                            top: 3,
+                            bottom: 3,
+                          ),
+                          child: FittedBox(
+                            child: FutureBuilder(
+                              future: FirebaseDatabase.instance
+                                  .ref(user.uid)
+                                  .child("name")
+                                  .child(infoList[0].toString())
+                                  .get(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  return Text(
+                                      snapshot.data?.value.toString() ?? "");
+                                }
+                                return Text("...");
+                              },
+                            ),
+                          ),
+                        ),
+                        Container(
+                          color: Colors.blue.shade700,
+                          width: MediaQuery.of(context).size.width * 0.05,
+                          height: 1,
+                        ),
+                        Container(
+                          width: 80,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.blue.shade700,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: EdgeInsets.only(
+                            left: 10,
+                            top: 3,
+                            bottom: 3,
+                            right: 10,
+                          ),
+                          margin: EdgeInsets.only(
+                            top: 3,
+                            bottom: 3,
+                          ),
+                          child: Text("Pin: ${infoList[0]}"),
+                        ),
+                        Container(
+                          color: Colors.blue.shade700,
+                          width: MediaQuery.of(context).size.width * 0.05,
+                          height: 1,
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.blue.shade700,
+                            ),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          height: 40,
+                          margin: EdgeInsets.only(top: 5, bottom: 5),
+                          child: Switch.adaptive(
+                            value: infoList[1] == "1",
+                            onChanged: (value) async {
+                              try {
+                                dataList[index] =
+                                    "${infoList[0]}:${infoList[1] == '1' ? "0" : "1"}";
+                                String toSend = "";
+                                for (String info in dataList) {
+                                  if (info.isNotEmpty) {
+                                    toSend += "$info,";
+                                  }
+                                }
+
+                                await FirebaseDatabase.instance
+                                    .ref(user.uid)
+                                    .child('app')
+                                    .set(toSend)
+                                    .then((v) {
+                                  toastification.show(
+                                    context: context,
+                                    title: Text("Successful"),
+                                    description:
+                                        Text("Command have send to server."),
+                                    autoCloseDuration:
+                                        const Duration(seconds: 2),
+                                    type: ToastificationType.success,
+                                  );
+                                });
+                              } catch (e) {
+                                toastification.show(
+                                  context: context,
+                                  title: Text("Something went wrong"),
+                                  autoCloseDuration: const Duration(seconds: 2),
+                                  type: ToastificationType.error,
+                                );
+                              }
+                            },
+                          ),
+                        )
+                      ],
+                    );
+                  },
+                ),
+              ),
       ],
     );
+  }
+
+  void onAddNewElement(
+    GlobalKey<FormState> formKey,
+    TextEditingController pinController,
+    TextEditingController nameController,
+  ) {
+    showDialog(
+        context: context,
+        builder: (context) {
+          return Dialog(
+            insetPadding: EdgeInsets.all(10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Form(
+              key: formKey,
+              child: Container(
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Add new element",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Divider(color: Colors.black),
+                    Gap(15),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: EdgeInsets.only(left: 10),
+                      child: TextFormField(
+                        controller: pinController,
+                        validator: (value) {
+                          if (int.tryParse(value ?? "") == null) {
+                            return "Enter valid pin number";
+                          } else {
+                            return null;
+                          }
+                        },
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: "type Pin number here",
+                        ),
+                      ),
+                    ),
+                    Gap(10),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: EdgeInsets.only(left: 10),
+                      child: TextFormField(
+                        controller: nameController,
+                        validator: (value) {
+                          if (value == null ||
+                              value.isEmpty ||
+                              value.length > 20) {
+                            return "Enter element name between 1 to 20 characters";
+                          } else {
+                            return null;
+                          }
+                        },
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: "type element name here..",
+                        ),
+                      ),
+                    ),
+                    Gap(20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 40,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          if (formKey.currentState!.validate()) {
+                            try {
+                              final data = await FirebaseDatabase.instance
+                                  .ref(user.uid)
+                                  .child("app")
+                                  .get();
+                              String toSend = "";
+                              if (data.exists) {
+                                toSend += "${data.value}";
+                              }
+                              toSend += "${pinController.text.trim()}:0,";
+                              await FirebaseDatabase.instance
+                                  .ref(user.uid)
+                                  .child('app')
+                                  .set(toSend);
+                              await FirebaseDatabase.instance
+                                  .ref(user.uid)
+                                  .child('name')
+                                  .update({
+                                pinController.text.trim():
+                                    nameController.text.trim(),
+                              });
+                              toastification.show(
+                                  context: context,
+                                  title: Text("Added"),
+                                  type: ToastificationType.success);
+                              Navigator.pop(context);
+                            } catch (e) {
+                              toastification.show(
+                                  context: context,
+                                  title: Text("Unsuccessful"),
+                                  description: Text(e.toString()),
+                                  type: ToastificationType.success);
+                            }
+                          }
+                        },
+                        icon: Icon(Icons.add),
+                        label: Text(
+                          "Add",
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        });
   }
 
   Dialog onDeleteElements(List<String> dataList) {
@@ -620,4 +704,51 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+
+  Widget activeWidget = Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(15),
+      color: Colors.green,
+    ),
+    padding: EdgeInsets.only(
+      left: 10,
+      right: 10,
+      top: 2,
+      bottom: 2,
+    ),
+    margin: EdgeInsets.only(
+      right: 10,
+    ),
+    child: Text(
+      "Active",
+      style: TextStyle(
+        fontSize: 16,
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+  Widget unActiveWidget = Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(15),
+      color: Colors.red,
+    ),
+    padding: EdgeInsets.only(
+      left: 10,
+      right: 10,
+      top: 2,
+      bottom: 2,
+    ),
+    margin: EdgeInsets.only(
+      right: 10,
+    ),
+    child: Text(
+      "Offline",
+      style: TextStyle(
+        fontSize: 16,
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
 }

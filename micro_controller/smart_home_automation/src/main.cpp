@@ -11,6 +11,8 @@
 #include <WiFiS3.h>
 #endif
 
+#include <vector>
+
 #include <Firebase_ESP_Client.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
@@ -222,8 +224,8 @@ void loop()
     dataChanged = false;
     String controllerPath = "/controller";
     controllerPath += dataPath;
-      Firebase.RTDB.setString(&fbdo, controllerPath, valueOnDataPath);
-    }
+    Firebase.RTDB.setString(&fbdo, controllerPath, valueOnDataPath);
+  }
 
   // After calling stream.keepAlive, now we can track the server connecting status
   if (!stream.httpConnected())
