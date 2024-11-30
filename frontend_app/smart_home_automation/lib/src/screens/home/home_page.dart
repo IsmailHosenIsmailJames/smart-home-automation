@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:get/get.dart';
+import 'package:hive/hive.dart';
+import 'package:smart_home_automation/src/screens/auth/login/login_page.dart';
 import 'package:toastification/toastification.dart';
 
 class HomePage extends StatefulWidget {
@@ -18,8 +21,62 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: Drawer(
+        child: ListView(
+          children: [
+            DrawerHeader(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.blue.shade900,
+                    foregroundColor: Colors.white,
+                    radius: 35,
+                    child:
+                        Text(("${user.displayName ?? "  "}  ").substring(0, 2)),
+                  ),
+                  Gap(10),
+                  Text(user.displayName ?? ""),
+                  SelectableText(
+                    "UID: ${user.uid}",
+                    style: TextStyle(fontSize: 10),
+                  ),
+                  Text(
+                    "Dynamic Automation",
+                    style: TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {},
+                      child: Text("Get Code"),
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        await FirebaseAuth.instance.signOut();
+                        await Hive.box('info').clear();
+                        Get.to(() => LoginPage());
+                      },
+                      child: Text("Log Out"),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
       appBar: AppBar(
-        title: const Text("Dynamic Automation"),
+        title: const Text("Home"),
         actions: [
           StreamBuilder(
             stream: FirebaseDatabase.instance

@@ -11,6 +11,7 @@ import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:smart_home_automation/src/screens/auth/login/login_page.dart';
 import 'package:smart_home_automation/src/screens/home/home_page.dart';
+import 'package:toastification/toastification.dart';
 
 class RegistrationPage extends StatefulWidget {
   const RegistrationPage({super.key});
@@ -170,11 +171,19 @@ class _RegistrationPageState extends State<RegistrationPage> {
                           "password": password.text,
                           "uid": uid,
                         });
+                        // ignore: use_build_context_synchronously
                         Navigator.pop(context);
                         Get.off(() => HomePage());
                       }
                     }
                   } catch (e) {
+                    toastification.show(
+                      // ignore: use_build_context_synchronously
+                      context: context,
+                      title: Text("Something went wrong"),
+                      description: Text(e.toString()),
+                      type: ToastificationType.error,
+                    );
                     log("Error with : \n$e");
                   }
                 },

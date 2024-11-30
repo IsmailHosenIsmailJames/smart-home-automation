@@ -9,6 +9,7 @@ import 'package:hive/hive.dart';
 import 'package:smart_home_automation/src/screens/auth/registration/registration_page.dart';
 import 'package:smart_home_automation/src/screens/home/home_page.dart';
 import 'package:smart_home_automation/src/theme/colors.dart';
+import 'package:toastification/toastification.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -102,37 +103,48 @@ class _LoginPageState extends State<LoginPage> {
                   child: ElevatedButton(
                     onPressed: () async {
                       if (formKey.currentState!.validate()) {
-                        showCupertinoDialog(
-                          context: context,
-                          builder: (context) => const CupertinoAlertDialog(
-                            title: Text("Logging in..."),
-                          ),
-                        );
-                        UserCredential userCredential = await FirebaseAuth
-                            .instance
-                            .signInWithEmailAndPassword(
-                          email: email.text,
-                          password: password.text,
-                        );
-                        User? user = userCredential.user;
-                        if (user != null) {
-                          final userData = await FirebaseFirestore.instance
-                              .collection("user")
-                              .doc(user.uid)
-                              .get();
+                        try {
+                          showCupertinoDialog(
+                            context: context,
+                            builder: (context) => const CupertinoAlertDialog(
+                              title: Text("Logging in..."),
+                            ),
+                          );
+                          UserCredential userCredential = await FirebaseAuth
+                              .instance
+                              .signInWithEmailAndPassword(
+                            email: email.text,
+                            password: password.text,
+                          );
+                          User? user = userCredential.user;
+                          if (user != null) {
+                            final userData = await FirebaseFirestore.instance
+                                .collection("user")
+                                .doc(user.uid)
+                                .get();
 
-                          if (userData.exists && userData.data() != null) {
-                            final data = userData.data();
-                            await Hive.box('info').put("userInfo", {
-                              "name": data!['name'],
-                              "phone": data['phone'],
-                              "password": password.text,
-                              "uid": user.uid,
-                            });
-                            Get.off(() => HomePage());
+                            if (userData.exists && userData.data() != null) {
+                              final data = userData.data();
+                              await Hive.box('info').put("userInfo", {
+                                "name": data!['name'],
+                                "phone": data['phone'],
+                                "password": password.text,
+                                "uid": user.uid,
+                              });
+                              // ignore: use_build_context_synchronously
+                              Navigator.pop(context);
+                              Get.off(() => HomePage());
+                            }
                           }
+                        } catch (e) {
+                          toastification.show(
+                            // ignore: use_build_context_synchronously
+                            context: context,
+                            title: Text("Something went wrong"),
+                            description: Text(e.toString()),
+                            type: ToastificationType.error,
+                          );
                         }
-                        Navigator.pop(context);
                       }
                     },
                     child: Text(
