@@ -7,6 +7,7 @@ import 'package:gap/gap.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:smart_home_automation/src/screens/auth/login/login_page.dart';
+import 'package:smart_home_automation/src/screens/get_microcontroller_code/get_microcontroller_code.dart';
 import 'package:toastification/toastification.dart';
 
 class HomePage extends StatefulWidget {
@@ -54,7 +55,9 @@ class _HomePageState extends State<HomePage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Get.to(() => GetMicrocontrollerCode());
+                      },
                       child: Text("Get Code"),
                     ),
                   ),
@@ -526,6 +529,7 @@ class _HomePageState extends State<HomePage> {
                                     autoCloseDuration:
                                         const Duration(seconds: 2),
                                     type: ToastificationType.success,
+                                    alignment: Alignment.bottomRight,
                                   );
                                 });
                               } catch (e) {
@@ -534,6 +538,7 @@ class _HomePageState extends State<HomePage> {
                                   title: Text("Something went wrong"),
                                   autoCloseDuration: const Duration(seconds: 2),
                                   type: ToastificationType.error,
+                                  alignment: Alignment.bottomRight,
                                 );
                               }
                             },
@@ -653,16 +658,22 @@ class _HomePageState extends State<HomePage> {
                                     nameController.text.trim(),
                               });
                               toastification.show(
-                                  context: context,
-                                  title: Text("Added"),
-                                  type: ToastificationType.success);
+                                context: context,
+                                title: Text("Added"),
+                                type: ToastificationType.success,
+                                alignment: Alignment.bottomRight,
+                                autoCloseDuration: Duration(seconds: 2),
+                              );
                               Navigator.pop(context);
                             } catch (e) {
                               toastification.show(
-                                  context: context,
-                                  title: Text("Unsuccessful"),
-                                  description: Text(e.toString()),
-                                  type: ToastificationType.success);
+                                context: context,
+                                title: Text("Unsuccessful"),
+                                description: Text(e.toString()),
+                                type: ToastificationType.success,
+                                alignment: Alignment.bottomRight,
+                                autoCloseDuration: Duration(seconds: 2),
+                              );
                             }
                           }
                         },
@@ -733,6 +744,8 @@ class _HomePageState extends State<HomePage> {
                             if (dataList.length <= 1) {
                               toastification.show(
                                 title: Text("All can't be deleted!"),
+                                alignment: Alignment.bottomRight,
+                                autoCloseDuration: Duration(seconds: 2),
                               );
                             }
                             FirebaseDatabase.instance
@@ -745,6 +758,8 @@ class _HomePageState extends State<HomePage> {
                                 Navigator.pop(context);
                                 toastification.show(
                                   title: Text("Deleted from App!"),
+                                  alignment: Alignment.bottomRight,
+                                  autoCloseDuration: Duration(seconds: 2),
                                 );
                               },
                             );

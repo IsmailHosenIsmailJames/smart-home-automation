@@ -143,6 +143,8 @@ class _LoginPageState extends State<LoginPage> {
                             title: Text("Something went wrong"),
                             description: Text(e.toString()),
                             type: ToastificationType.error,
+                            alignment: Alignment.bottomRight,
+                            autoCloseDuration: Duration(seconds: 2),
                           );
                         }
                       }

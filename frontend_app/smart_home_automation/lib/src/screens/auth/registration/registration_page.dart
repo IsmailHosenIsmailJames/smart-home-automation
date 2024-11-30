@@ -183,6 +183,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                       title: Text("Something went wrong"),
                       description: Text(e.toString()),
                       type: ToastificationType.error,
+                      alignment: Alignment.bottomRight,
+                      autoCloseDuration: Duration(seconds: 2),
                     );
                     log("Error with : \n$e");
                   }
