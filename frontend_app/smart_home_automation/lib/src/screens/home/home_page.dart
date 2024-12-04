@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:smart_home_automation/src/screens/auth/login/login_page.dart';
 import 'package:smart_home_automation/src/screens/get_microcontroller_code/get_microcontroller_code.dart';
+import 'package:smart_home_automation/src/screens/home/controller/home_controller.dart';
 import 'package:toastification/toastification.dart';
 
 class HomePage extends StatefulWidget {
@@ -19,6 +20,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final User user = FirebaseAuth.instance.currentUser!;
+  int pushedIndex = -1;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -262,24 +264,18 @@ class _HomePageState extends State<HomePage> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Container(
-                          width: 75,
+                          width: 100,
+                          height: 30,
                           decoration: BoxDecoration(
                             border: Border.all(
                               color: Colors.blue.shade700,
                             ),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          padding: EdgeInsets.only(
-                            left: 10,
-                            top: 3,
-                            bottom: 3,
-                            right: 10,
-                          ),
-                          margin: EdgeInsets.only(
-                            top: 3,
-                            bottom: 3,
-                          ),
-                          child: FittedBox(
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.only(
+                                left: 10, top: 3, bottom: 3, right: 10),
+                            scrollDirection: Axis.horizontal,
                             child: FutureBuilder(
                               future: FirebaseDatabase.instance
                                   .ref(user.uid)
@@ -288,8 +284,10 @@ class _HomePageState extends State<HomePage> {
                                   .get(),
                               builder: (context, snapshot) {
                                 if (snapshot.hasData) {
-                                  return Text(
-                                      snapshot.data?.value.toString() ?? "");
+                                  return Text(snapshot.data?.value
+                                          .toString()
+                                          .split("?")[0] ??
+                                      "");
                                 }
                                 return Text("...");
                               },
@@ -337,7 +335,8 @@ class _HomePageState extends State<HomePage> {
                           margin: EdgeInsets.only(top: 5, bottom: 5),
                           child: Switch.adaptive(
                             value: infoList[1] == "1",
-                            onChanged: (value) {},
+                            inactiveThumbColor: Colors.black,
+                            onChanged: null,
                           ),
                         )
                       ],
@@ -423,129 +422,178 @@ class _HomePageState extends State<HomePage> {
                     }
                     List<String> infoList = dataList[index].split(":");
 
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 100,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.blue.shade700,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: EdgeInsets.only(
-                            left: 10,
-                            top: 3,
-                            bottom: 3,
-                            right: 10,
-                          ),
-                          margin: EdgeInsets.only(
-                            top: 3,
-                            bottom: 3,
-                          ),
-                          child: FittedBox(
-                            child: FutureBuilder(
-                              future: FirebaseDatabase.instance
-                                  .ref(user.uid)
-                                  .child("name")
-                                  .child(infoList[0].toString())
-                                  .get(),
-                              builder: (context, snapshot) {
-                                if (snapshot.hasData) {
-                                  return Text(
-                                      snapshot.data?.value.toString() ?? "");
-                                }
-                                return Text("...");
-                              },
-                            ),
-                          ),
-                        ),
-                        Container(
-                          color: Colors.blue.shade700,
-                          width: MediaQuery.of(context).size.width * 0.05,
-                          height: 1,
-                        ),
-                        Container(
-                          width: 80,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.blue.shade700,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: EdgeInsets.only(
-                            left: 10,
-                            top: 3,
-                            bottom: 3,
-                            right: 10,
-                          ),
-                          margin: EdgeInsets.only(
-                            top: 3,
-                            bottom: 3,
-                          ),
-                          child: Text("Pin: ${infoList[0]}"),
-                        ),
-                        Container(
-                          color: Colors.blue.shade700,
-                          width: MediaQuery.of(context).size.width * 0.05,
-                          height: 1,
-                        ),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.blue.shade700,
-                            ),
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          height: 40,
-                          margin: EdgeInsets.only(top: 5, bottom: 5),
-                          child: Switch.adaptive(
-                            value: infoList[1] == "1",
-                            onChanged: (value) async {
-                              try {
-                                dataList[index] =
-                                    "${infoList[0]}:${infoList[1] == '1' ? "0" : "1"}";
-                                String toSend = "";
-                                for (String info in dataList) {
-                                  if (info.isNotEmpty) {
-                                    toSend += "$info,";
-                                  }
-                                }
+                    return FutureBuilder(
+                        future: FirebaseDatabase.instance
+                            .ref(user.uid)
+                            .child("name")
+                            .child(infoList[0].toString())
+                            .get(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) {
+                            return Text("...");
+                          }
+                          String pinName =
+                              snapshot.data?.value.toString() ?? "";
+                          bool isPushButton =
+                              pinName.contains("?type=Push Button");
 
-                                await FirebaseDatabase.instance
-                                    .ref(user.uid)
-                                    .child('app')
-                                    .set(toSend)
-                                    .then((v) {
-                                  toastification.show(
-                                    context: context,
-                                    title: Text("Successful"),
-                                    description:
-                                        Text("Command have send to server."),
-                                    autoCloseDuration:
-                                        const Duration(seconds: 2),
-                                    type: ToastificationType.success,
-                                    alignment: Alignment.bottomRight,
-                                  );
-                                });
-                              } catch (e) {
-                                toastification.show(
-                                  context: context,
-                                  title: Text("Something went wrong"),
-                                  autoCloseDuration: const Duration(seconds: 2),
-                                  type: ToastificationType.error,
-                                  alignment: Alignment.bottomRight,
-                                );
-                              }
-                            },
-                          ),
-                        )
-                      ],
-                    );
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 100,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.blue.shade700,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: SingleChildScrollView(
+                                  padding: EdgeInsets.only(
+                                      left: 10, top: 3, bottom: 3, right: 10),
+                                  scrollDirection: Axis.horizontal,
+                                  child: Text(snapshot.data?.value
+                                          .toString()
+                                          .split("?")[0] ??
+                                      ""),
+                                ),
+                              ),
+                              Container(
+                                color: Colors.blue.shade700,
+                                width: MediaQuery.of(context).size.width * 0.05,
+                                height: 1,
+                              ),
+                              Container(
+                                width: 80,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.blue.shade700,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                padding: EdgeInsets.only(
+                                  left: 10,
+                                  top: 3,
+                                  bottom: 3,
+                                  right: 10,
+                                ),
+                                margin: EdgeInsets.only(
+                                  top: 3,
+                                  bottom: 3,
+                                ),
+                                child: Text("Pin: ${infoList[0]}"),
+                              ),
+                              Container(
+                                color: Colors.blue.shade700,
+                                width: MediaQuery.of(context).size.width * 0.05,
+                                height: 1,
+                              ),
+                              Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.blue.shade700,
+                                  ),
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                height: 40,
+                                margin: EdgeInsets.only(top: 5, bottom: 5),
+                                child: isPushButton
+                                    ? GestureDetector(
+                                        behavior: HitTestBehavior.translucent,
+                                        child: Container(
+                                          height: 50,
+                                          width: 60,
+                                          decoration: BoxDecoration(
+                                              color: Colors.red,
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                              boxShadow: [
+                                                if (index == pushedIndex)
+                                                  BoxShadow(
+                                                    spreadRadius: 10,
+                                                    blurRadius: 10,
+                                                    color: Colors.red,
+                                                  ),
+                                              ]),
+                                          child: Center(
+                                            child: Text(
+                                              index == pushedIndex
+                                                  ? "Pull"
+                                                  : "Push",
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        onTapDown: (TapDownDetails
+                                            tapDownDetails) async {
+                                          try {
+                                            final controller =
+                                                Get.put(HomeController());
+                                            controller.previousSateOfSwitches
+                                                .value = dataList;
+                                            await onSwitchOn(
+                                              dataList,
+                                              index,
+                                              infoList,
+                                              context,
+                                              state: true,
+                                            );
+                                            setState(() {
+                                              pushedIndex = index;
+                                            });
+                                          } catch (e) {
+                                            log(e.toString());
+                                          }
+                                        },
+                                        onTapUp: (details) async {
+                                          try {
+                                            final controller =
+                                                Get.put(HomeController());
+
+                                            await onSwitchOn(
+                                              controller.previousSateOfSwitches,
+                                              index,
+                                              infoList,
+                                              context,
+                                              state: false,
+                                            );
+
+                                            setState(() {
+                                              pushedIndex = -1;
+                                            });
+                                          } catch (e) {
+                                            log(e.toString());
+                                          }
+                                        },
+                                      )
+                                    : Switch.adaptive(
+                                        value: infoList[1] == "1",
+                                        onChanged: (value) async {
+                                          try {
+                                            await onSwitchOn(dataList, index,
+                                                infoList, context);
+                                          } catch (e) {
+                                            toastification.show(
+                                              context: context,
+                                              title:
+                                                  Text("Something went wrong"),
+                                              autoCloseDuration:
+                                                  const Duration(seconds: 2),
+                                              type: ToastificationType.error,
+                                              alignment: Alignment.bottomRight,
+                                            );
+                                          }
+                                        },
+                                      ),
+                              )
+                            ],
+                          );
+                        });
                   },
                 ),
               ),
@@ -553,11 +601,47 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> onSwitchOn(List<String> dataList, int index,
+      List<String> infoList, BuildContext context,
+      {bool? state}) async {
+    String command = state != null
+        ? state == true
+            ? "1"
+            : "0"
+        : infoList[1] == '1'
+            ? "0"
+            : "1";
+    dataList[index] = "${infoList[0]}:$command";
+    String toSend = "";
+    for (String info in dataList) {
+      if (info.isNotEmpty) {
+        toSend += "$info,";
+      }
+    }
+
+    await FirebaseDatabase.instance
+        .ref(user.uid)
+        .child('app')
+        .set(toSend)
+        .then((v) {
+      toastification.show(
+        context: context,
+        title: Text("Successful"),
+        description: Text("Command have send to server."),
+        autoCloseDuration: const Duration(seconds: 2),
+        type: ToastificationType.success,
+        alignment: Alignment.bottomRight,
+      );
+    });
+  }
+
   void onAddNewElement(
     GlobalKey<FormState> formKey,
     TextEditingController pinController,
     TextEditingController nameController,
   ) {
+    String buttonType = "Switch Button";
+    List<String> buttonTypeList = ["Switch Button", "Push Button"];
     showDialog(
         context: context,
         builder: (context) {
@@ -629,6 +713,32 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
+                    Gap(10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Obx(
+                        () => DropdownButton(
+                          isExpanded: true,
+                          items: List.generate(
+                            buttonTypeList.length,
+                            (index) => DropdownMenuItem(
+                              value: buttonTypeList[index],
+                              child: Text(
+                                buttonTypeList[index],
+                              ),
+                            ),
+                          ),
+                          value: buttonType,
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                buttonType = value;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ),
                     Gap(20),
                     SizedBox(
                       width: double.infinity,
@@ -637,6 +747,14 @@ class _HomePageState extends State<HomePage> {
                         onPressed: () async {
                           if (formKey.currentState!.validate()) {
                             try {
+                              String name = nameController.text.trim();
+                              name += "?type=$buttonType";
+                              await FirebaseDatabase.instance
+                                  .ref(user.uid)
+                                  .child('name')
+                                  .update({
+                                pinController.text.trim(): name,
+                              });
                               final data = await FirebaseDatabase.instance
                                   .ref(user.uid)
                                   .child("app")
@@ -650,13 +768,7 @@ class _HomePageState extends State<HomePage> {
                                   .ref(user.uid)
                                   .child('app')
                                   .set(toSend);
-                              await FirebaseDatabase.instance
-                                  .ref(user.uid)
-                                  .child('name')
-                                  .update({
-                                pinController.text.trim():
-                                    nameController.text.trim(),
-                              });
+
                               toastification.show(
                                 context: context,
                                 title: Text("Added"),
@@ -692,6 +804,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Dialog onDeleteElements(List<String> dataList) {
+    print(dataList);
     return Dialog(
       insetPadding: EdgeInsets.all(10),
       shape: RoundedRectangleBorder(
@@ -716,6 +829,7 @@ class _HomePageState extends State<HomePage> {
                 itemCount: dataList.length,
                 itemBuilder: (context, index) {
                   List<String> infoList = dataList[index].split(":");
+                  if (infoList.length == 1) return SizedBox();
                   return Container(
                     decoration: BoxDecoration(
                       color: Colors.grey.shade200,
@@ -730,7 +844,20 @@ class _HomePageState extends State<HomePage> {
                     ),
                     child: Row(
                       children: [
-                        Text(infoList[2]),
+                        FutureBuilder(
+                          future: FirebaseDatabase.instance
+                              .ref(user.uid)
+                              .child("name")
+                              .child(infoList[0].toString())
+                              .get(),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData) {
+                              return Text(
+                                  snapshot.data?.value.toString() ?? "");
+                            }
+                            return Text("...");
+                          },
+                        ),
                         Spacer(),
                         IconButton(
                           style: IconButton.styleFrom(
@@ -741,22 +868,23 @@ class _HomePageState extends State<HomePage> {
                           color: Colors.red.shade400,
                           icon: Icon(Icons.delete),
                           onPressed: () {
-                            if (dataList.length <= 1) {
-                              toastification.show(
-                                title: Text("All can't be deleted!"),
-                                alignment: Alignment.bottomRight,
-                                autoCloseDuration: Duration(seconds: 2),
-                              );
+                            String toSend = "";
+                            dataList.removeAt(index);
+                            for (String data in dataList) {
+                              if (data.isNotEmpty) {
+                                toSend += "$data,";
+                              }
                             }
+
                             FirebaseDatabase.instance
-                                .ref()
+                                .ref(user.uid)
                                 .child('/app')
-                                .child(index.toString())
-                                .remove()
+                                .set(toSend)
                                 .then(
                               (value) {
                                 Navigator.pop(context);
                                 toastification.show(
+                                  context: context,
                                   title: Text("Deleted from App!"),
                                   alignment: Alignment.bottomRight,
                                   autoCloseDuration: Duration(seconds: 2),
