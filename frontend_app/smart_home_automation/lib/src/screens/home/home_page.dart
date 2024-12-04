@@ -401,6 +401,7 @@ class _HomePageState extends State<HomePage> {
                     formKey,
                     pinController,
                     nameController,
+                    dataList,
                   );
                 },
                 icon: Icon(Icons.add),
@@ -639,6 +640,7 @@ class _HomePageState extends State<HomePage> {
     GlobalKey<FormState> formKey,
     TextEditingController pinController,
     TextEditingController nameController,
+    List<String> dataList,
   ) {
     String buttonType = "Switch Button";
     List<String> buttonTypeList = ["Switch Button", "Push Button"];
@@ -678,6 +680,13 @@ class _HomePageState extends State<HomePage> {
                           if (int.tryParse(value ?? "") == null) {
                             return "Enter valid pin number";
                           } else {
+                            for (String s in dataList) {
+                              List<String> infoList = s.split(":");
+                              if (infoList[0] == value) {
+                                return "This pin is already in use";
+                              }
+                            }
+
                             return null;
                           }
                         },
@@ -716,27 +725,25 @@ class _HomePageState extends State<HomePage> {
                     Gap(10),
                     SizedBox(
                       width: double.infinity,
-                      child: Obx(
-                        () => DropdownButton(
-                          isExpanded: true,
-                          items: List.generate(
-                            buttonTypeList.length,
-                            (index) => DropdownMenuItem(
-                              value: buttonTypeList[index],
-                              child: Text(
-                                buttonTypeList[index],
-                              ),
+                      child: DropdownButton(
+                        isExpanded: true,
+                        items: List.generate(
+                          buttonTypeList.length,
+                          (index) => DropdownMenuItem(
+                            value: buttonTypeList[index],
+                            child: Text(
+                              buttonTypeList[index],
                             ),
                           ),
-                          value: buttonType,
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                buttonType = value;
-                              });
-                            }
-                          },
                         ),
+                        value: buttonType,
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              buttonType = value;
+                            });
+                          }
+                        },
                       ),
                     ),
                     Gap(20),
